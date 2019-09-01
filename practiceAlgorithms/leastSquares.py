@@ -41,7 +41,9 @@ mse=np.sum((y_hat-y)**2)/n
 
 print("The mean-squared error is {}.".format(mse))
 
-plt.scatter(x,y_hat,label='Least Square Fit',color='red',marker='x')
+x_plot, y_hat_plot = (list(t) for t in zip(*sorted(zip(x, y_hat))))
+
+plt.plot(x_plot,y_hat_plot,label='Least Square Fit',color='red',marker='x')
 
 plt.scatter(x,y,label='Truth',color='blue',marker='o',alpha=0.2)
 
