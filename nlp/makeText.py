@@ -1,4 +1,4 @@
-#!/home/the42nd/anaconda3/bin/python
+#!/usr/local/anaconda3/bin/python
 
 import argparse
 import numpy as np
@@ -19,8 +19,18 @@ amts=np.random.lognormal(3,1,numLines)
 posEntryModes=random.choices(['M','C','X','E','V','U','S'],k=numLines)
 mccs=np.random.randint(0,9999,numLines)
 
+basePans=[]
+for i in range(int(numLines/1000)):
+	pan=''.join(random.choices(string.ascii_letters +string.digits,k=19))
+	basePans.append(pan)
+
+pans=[]+basePans
+for i in range(numLines-int(numLines/1000)):
+	pans.append(random.choice(basePans))
+
+random.shuffle(pans)
+
 with open(outFile,'w') as out:
 	for i in range(numLines):
-		pan=''.join(random.choices(string.ascii_letters +string.digits,k=19))
-		line='{}|{}|{:4d}|{:10.2f}|'.format(pan,posEntryModes[i],mccs[i],amts[i])
+		line='{}|{}|{:4d}|{:10.2f}|'.format(pans[i],posEntryModes[i],mccs[i],amts[i])
 		out.write(line+'\n')

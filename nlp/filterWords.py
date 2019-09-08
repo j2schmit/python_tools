@@ -1,4 +1,4 @@
-#!/apps/usr/local64/anaconda-appfraud/bin/python                                                                           
+#!/usr/local/anaconda3/bin/python                        
 
 import sys
 import argparse
@@ -6,29 +6,25 @@ import operator
 from collections import defaultdict
 import subprocess                  
 
-parser = argparse.ArgumentParser(description='_FA_VERSION_MESSAGE'+"\n\n"+'A script that acts as a filter on STDIN and sends filtered words to STDOUT.')                                                                                                
+parser = argparse.ArgumentParser(description='A script that acts as a filter on STDIN, counts words after first filtering, filters low count words, and produces document word count file for input into cpTrain. Note, the user must defined the filters for each field in a seperate file named filterDict.py. There must be a dictionary of filters containg a filter for each field from the input line as the value and the key is the order in which the fields will be appended. Additionally, there must be a filter to get the pan/document identifier from the input line that is named panFilter. Also low count words will be filtered again by fieldFilter2, which should be defined to take the word and filter to a broader word, as desired.')                                                                                                        
 
 parser.add_argument('-m','--minCount',type=int,
             help='Minimum count per word, default is 10. Words with smaller counts will be filtered by fieldFilter2.',
-            default=10)                                                                                               
+            default=10)                                                                                              
 parser.add_argument('-n','--noFilter',action='store_true',                                                            
             help='Do not filter any fields')                                                                          
-parser.add_argument('-d','--delimiter',                                                                               
-            help='Set delimiter, DEFAULT is pipe-delimited',default='|')                                              
-parser.add_argument('-p','--panField',required=True,type=int,                                                         
-            help='Field/column containing the PAN. (Indexing starts at zero.)')                                       
 
 args=parser.parse_args()
 
-delimiter=args.delimiter
-noFilter=args.noFilter  
-minCount=args.minCount  
-panField=args.panField  
+noFilter=args.noFilter
+minCount=args.minCount
 
 import filterDict
 
 def identityFilter(field):
     return field.strip()  
+
+panFilter=filterDict.panFilter
 
 fieldFilter=filterDict.fieldFilter
 
@@ -44,36 +40,37 @@ print("Starting first pass, for intitial word filtering and counts...")
 
 count=0
 with open('temp.txt','w') as out:
-    for line in sys.stdin:       
-        count+=1                 
-        if (count%100000==0):    
-            print(count, end='\r')
-        splitLine=line.split(delimiter)
-        pan=splitLine[panField].strip()
-        word=''                        
-        for field in fields:           
-            word+=fieldFilter[field](splitLine)
-        wordCounts[word]+=1                    
-        out.write(pan+'|'+word+'\n')           
+    for line in sys.stdin:      
+        count+=1                
+        pan=panFilter(line)      
+        word=''                  
+        for field in fields:    
+            word+=fieldFilter[field](line)
+        wordCounts[word]+=1              
+        out.write(pan+'|'+word+'\n')      
 
-subprocess.Popen('sort temp.txt -o temp.txt'.split())
+subprocess.call('sort temp.txt -o temp.txt'.split())
 
 print(count)
 print('First pass complete.')
 wordList=[pair[0] for pair in sorted(wordCounts.items(), key=operator.itemgetter(1),reverse=True)]
-print('There are {} unique words.'.format(len(wordList)))                                         
+print('There are {} unique words.'.format(len(wordList)))                                        
+
+with open('wordCounts.txt','w') as out:
+    for word,count in sorted(wordCounts.items(), key=operator.itemgetter(1),reverse=True):
+        out.write('{}, {}\n'.format(word,count))
 
 aboveMinCount=True
 topList=[]        
-index=0           
-while aboveMinCount:
-    if wordCounts[wordList[index]]>=minCount:
-        topList.append(wordList[index])      
-        index+=1                             
-    else:                                    
-        aboveMinCount=False                  
+index=0          
+#while aboveMinCount:
+#    if wordCounts[wordList[index]]>=minCount:
+#        topList.append(wordList[index])      
+#        index+=1                            
+#    else:                                    
+#        aboveMinCount=False                  
 
-wordList=topList
+#wordList=topList
 
 wordsAboveCount=len(wordList)
 
@@ -90,26 +87,22 @@ print('Starting second pass, and creating PAN/document word count dictionary.')
 
 def writeDict(countsDict):
     countsList=[str(pair[0])+':'+str(pair[1]) for pair in sorted(countsDict.items(), key=operator.itemgetter(0))]
-    dictString=' '.join(countsList)+'\n'                                                                         
+    dictString=' '.join(countsList)+'\n'                                                                        
     return dictString                                                                                            
 
 panDict=defaultdict(int)
-oldPAN=''               
-count=0                 
-with open('temp.txt','r') as f, open('pans.txt','w') as outPan, open('cpTrainInput.dat','w') as out:
-    for line in f:                                                                                  
-        count+=1                                                                                    
-        if (count%100000==0):                                                                       
-            print(count, end='\r')                                                                  
-        splitLine=line.split('|')                                                                   
+oldPAN=''              
+count=0                
+with open('temp.txt') as f, open('pans.txt','w') as outPan, open('cpTrainInput.dat','w') as out:
+    for line in f:                                                                              
+        count+=1
+        if (count%100000==0):
+            print(count, end='\r')
+        splitLine=line.split('|')
         pan=splitLine[0]
         if pan!=oldPAN:
             outPan.write('{}\n'.format(pan))
-        try:
-            word=splitLine[1].replace('\n','')
-        except IndexError:
-            print('Bad line at line {}'.format(count))
-            print('{}, {}'.format(pan,line))
+        word=splitLine[1].replace('\n','')
         if wordCounts[word]<minCount:
             word=fieldFilter2(word)
         if pan!=oldPAN and oldPAN!='':
@@ -137,3 +130,4 @@ print('Word list created.')
 subprocess.Popen('rm temp.txt'.split())
 
 print('Finished.')
+
